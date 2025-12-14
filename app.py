@@ -1,21 +1,20 @@
 import streamlit as st
 import csv
 import random
-import datetime
 import io
 import textwrap
 
 # ---------------------------------------------------------
-# 🔐 [1] 수강생 관리 (이곳에 아이디/비번을 추가하세요)
+# 🔐 [1] 수강생 관리 (아이디와 비번 설정)
 # ---------------------------------------------------------
 USERS = {
-    "student01": "tarot123",  # 아이디: 비밀번호
-    "vip_user": "love2025",
+    "student01": "tarot123",
+    "vip": "love2025",
     "admin": "masterkey"
 }
 
 # ---------------------------------------------------------
-# 💾 [2] 데이터베이스 (최종 통합본)
+# 💾 [2] 데이터베이스 (현실적 문제 5종 포함)
 # ---------------------------------------------------------
 csv_data = """ID,Type,Group,Title,Logic,Description
 T01,Timing,초고속,1시간 이내,Do < 1 deg + Cardinal + Angle,상황이 매우 급박합니다. 지금 당장 혹은 1시간 이내에 소식이 옵니다.
@@ -64,7 +63,7 @@ S92,Situation,중립,스쳐가는 바람,Weak Aspect / Past,가끔 생각나고 
 """
 
 # ---------------------------------------------------------
-# 🤖 [3] 호라리 엔진 (Streamlit용 수정)
+# 🤖 [3] 호라리 엔진
 # ---------------------------------------------------------
 class HoraryBot:
     def __init__(self, raw_csv):
@@ -113,7 +112,7 @@ class HoraryBot:
         return s_card, t_card, outcome
 
 # ---------------------------------------------------------
-# 🖥️ [4] 메인 화면 및 로그인 로직
+# 🖥️ [4] 메인 화면 및 로그인 로직 (수정된 부분)
 # ---------------------------------------------------------
 def check_password():
     """로그인 확인 함수"""
@@ -121,76 +120,60 @@ def check_password():
         if st.session_state["username"] in USERS and \
            st.session_state["password"] == USERS[st.session_state["username"]]:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # 보안을 위해 비번 삭제
+            # [수정] 로그인 성공 시 아이디를 별도로 저장 (오류 방지)
+            st.session_state["logged_in_user"] = st.session_state["username"] 
+            del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        # 처음 접속 시 로그인 화면 출력
         st.header("🔒 수강생 전용 호라리 타로")
         st.text_input("아이디(ID)", key="username")
         st.text_input("비밀번호(PW)", type="password", key="password")
         st.button("로그인", on_click=password_entered)
         return False
-    
     elif not st.session_state["password_correct"]:
-        # 비번 틀렸을 때
         st.header("🔒 수강생 전용 호라리 타로")
         st.text_input("아이디(ID)", key="username")
         st.text_input("비밀번호(PW)", type="password", key="password")
         st.button("로그인", on_click=password_entered)
         st.error("😕 아이디 또는 비밀번호가 틀렸습니다.")
         return False
-    
     else:
-        # 로그인 성공
         return True
 
-# 메인 실행 함수
 def main():
     st.set_page_config(page_title="신비의 호라리 타로", page_icon="🔮")
 
-    # 로그인 체크
     if check_password():
-        # 여기서부터가 로그인 성공 후 보이는 화면
         st.title("🔮 AI 호라리 타로 상담소")
-        st.caption(f"환영합니다, {st.session_state['username']}님! 당신의 고민을 들려주세요.")
+        # [수정] 저장된 아이디를 불러오도록 변경
+        st.caption(f"환영합니다, {st.session_state.get('logged_in_user', '방문자')}님! 당신의 고민을 들려주세요.")
         st.divider()
 
-        # 봇 초기화
         if 'bot' not in st.session_state:
             st.session_state['bot'] = HoraryBot(csv_data)
 
-        # 질문 입력
         with st.form("question_form"):
             user_question = st.text_area("질문을 입력하세요", height=80, placeholder="예: 그 사람에게 연락이 올까요?")
             submitted = st.form_submit_button("타로 카드 뽑기 🎴")
 
             if submitted and user_question:
                 with st.spinner('별들의 움직임을 계산하고 있습니다...'):
-                    # 결과 뽑기
                     s_card, t_card, outcome = st.session_state['bot'].draw_card()
-                    
-                    # 결과 보여주기
                     st.success("카드가 선택되었습니다!")
-                    
-                    # 카드 디자인 (컨테이너)
                     with st.container():
                         st.subheader(f"🎴 {s_card['Title']}")
                         st.caption(f"Logic: {s_card['Logic']}")
-                        
                         col1, col2 = st.columns(2)
                         with col1:
                             st.info(f"**📍 상황**\n\n{s_card['Detail_Situation']}")
                         with col2:
                             st.warning(f"**🧠 심리**\n\n{s_card['Detail_Psychology']}")
-                        
                         st.error(f"**⚖️ 결론**\n\n{s_card['Detail_Conclusion']}")
-                        
                         st.markdown("---")
                         st.markdown(f"### 📝 요약 조언")
                         st.write(s_card['Detail_Summary'])
-                        
                         st.markdown("---")
                         if outcome == '부정' and '이내' in t_card['Title']:
                             st.write(f"🕒 **예상 시기:** {t_card['Title']} (단, 문제가 해결되어야 함)")
